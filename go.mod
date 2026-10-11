@@ -1,17 +1,13 @@
 module github.com/liang-chang/debounce
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
-	github.com/alecthomas/kong v1.16.0
-	github.com/oalders/is v0.13.0
-	github.com/stretchr/testify v1.11.1
-	golang.org/x/sys v0.37.0
+	github.com/alecthomas/kong v1.16.1
+	github.com/oalders/is v0.14.3
+	github.com/stretchr/testify v1.12.1
+	golang.org/x/sys v0.47.0
 )
 
-require (
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
+require go.yaml.in/yaml/v3 v3.0.5 // indirect
