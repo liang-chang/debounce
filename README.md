@@ -12,15 +12,14 @@ Download an archive for your OS and architecture from
 the executable's directory to `PATH`. Windows archives use ZIP; Linux/macOS use
 tar.gz. Linux DEB/RPM packages are also produced.
 
-With Go 1.24 or newer, after the first release is published:
+With Go 1.24 or newer:
 
 ```text
 go install github.com/liang-chang/debounce@latest
 debounce --version
 ```
 
-The first independent version is `0.6.0` (tag `v0.6.0`). Before publication,
-build from this repository instead. Report issues at
+The first independent version is `0.6.0` (tag `v0.6.0`). Report issues at
 [liang-chang/debounce/issues](https://github.com/liang-chang/debounce/issues).
 
 ## Build
@@ -164,4 +163,5 @@ their licenses are in `THIRD-PARTY-NOTICES`.
   并在 WSL 中测试共用的路径 socket/文件锁逻辑；这不能替代 macOS 专属
   身份校验及实际运行验证，因此 macOS 支持暂标为实验性。
 
-GitHub Actions 已配置 macOS 运行测试；配置存在不代表该工作流已经运行通过。
+GitHub Actions 已在 Windows、Linux 和 macOS 上运行测试并通过；macOS 仍缺少
+维护者本地真机使用验证，因此继续标为实验性支持。

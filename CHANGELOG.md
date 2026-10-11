@@ -1,6 +1,6 @@
 # Changes
 
-## 0.6.0 (unreleased)
+## 0.6.0 2026-10-11
 
 - First independently maintained release under `github.com/liang-chang/debounce`.
 - Replace successful-execution cooldown with cross-process trailing-edge debounce.
@@ -10,8 +10,9 @@
 - Use Windows named pipes and Linux abstract Unix sockets; add experimental
   macOS pathname sockets with file-lock ownership and stale-socket recovery.
 - Remove upstream file-based cache and `--cache-dir` behavior.
-- Primarily tested on Windows; Linux tested in WSL2 Debian. macOS has only been
-  cross-compiled locally, with no Mac runtime testing by the maintainer.
+- Primarily used on Windows; Linux tested in WSL2 Debian. GitHub Actions tests
+  passed on Windows, Linux and macOS. macOS has no local runtime testing by the
+  maintainer and remains experimental.
 
 ## Upstream history (oalders/debounce)
 
