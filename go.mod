@@ -1,11 +1,13 @@
-module github.com/oalders/debounce
+module github.com/liang-chang/debounce
 
 go 1.24.0
 
 require (
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/alecthomas/kong v1.16.0
 	github.com/oalders/is v0.13.0
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/sys v0.37.0
 )
 
 require (

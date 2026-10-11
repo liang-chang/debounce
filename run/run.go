@@ -2,162 +2,111 @@ package run
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/oalders/debounce/age"
-	"github.com/oalders/debounce/touch"
-	"github.com/oalders/debounce/types"
+	"github.com/liang-chang/debounce/types"
 	is_age "github.com/oalders/is/age"
 )
 
-func Run(args *types.DebounceCommand, home string) (bool, []byte, error) { //nolint:cyclop
-	command := args.Command[0]
-	arguments := args.Command[1:]
-
-	prettyName := strings.Join(args.Command, " ")
-
-	cmdAsFilename, err := GenerateCacheFileName(prettyName, args.Local)
+func Run(args *types.DebounceCommand) (bool, []byte, error) {
+	userID, err := userIdentity()
 	if err != nil {
-		return false, []byte{}, err
+		return false, nil, err
 	}
-
-	var cacheDir string
-	if args.CacheDir != "" {
-		cacheDir = args.CacheDir
-		if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
-			return false, []byte{}, fmt.Errorf("provided cache directory does not exist: %s", cacheDir)
-		}
-	} else {
-		cacheDir = filepath.Join(home, ".cache", "debounce")
-		err := MaybeMakeCacheDir(home, filepath.Join(".cache", "debounce"))
-		if err != nil {
-			return false, []byte{}, err
-		}
+	if len(args.Command) == 0 {
+		return false, nil, errors.New("command is missing")
 	}
-
-	filename := filepath.Join(cacheDir, cmdAsFilename)
-	if args.Debug {
-		fmt.Printf("Looking for debounce file \"%s\"\n", filename)
-	}
-
-	tooSoon, err := age.Compare(filename, args.Quantity, args.Unit)
+	duration, err := is_age.StringToDuration(args.Quantity, args.Unit)
 	if err != nil {
-		return false, []byte{}, errors.Join(errors.New(`checking last modified time`), err)
+		return false, nil, err
 	}
-	if args.Status {
-		return HandleStatus(args, filename, tooSoon, prettyName)
-	}
-
-	if tooSoon {
-		TooSoon(args, prettyName)
-		return true, []byte{}, nil
-	}
-
-	// This is just like running any other user command, so assume user has
-	// already sanitized inputs.
-	if args.Debug {
-		fmt.Printf("🚀 Running command: %s %s\n", command, strings.Join(arguments, " "))
-	}
-	cmd := exec.CommandContext(context.Background(), command, arguments...)
-
-	output, err := cmd.CombinedOutput()
+	taskID, err := GenerateTaskID(args)
 	if err != nil {
-		return false, output, errors.Join(
-			fmt.Errorf("running command: %s %s", command, strings.Join(arguments, " ")),
-			err,
-		)
+		return false, nil, err
 	}
-	err = touch.Touch(filename)
-	if err != nil {
-		return false, output, errors.Join(errors.New("touch "+filename), err)
-	}
-	return true, output, nil
-}
-
-func MaybeMakeCacheDir(parent, cache string) error {
-	fullPath := filepath.Join(parent, cache)
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		err = os.MkdirAll(fullPath, 0o755)
-		if err != nil {
-			return errors.Join(errors.New("make cache dir"), err)
-		}
-	}
-
-	return nil
-}
-
-func GenerateCacheFileName(args string, local bool) (string, error) {
-	if local {
+	req := request{Version: protocolVersion, Interval: duration.Abs(), Status: args.Status}
+	if !args.Status {
 		cwd, err := os.Getwd()
 		if err != nil {
-			return "", errors.Join(errors.New("get current working directory"), err)
+			return false, nil, err
 		}
-		args = cwd + " " + args
-	}
-	hash := sha256.Sum256([]byte(args))
-	return hex.EncodeToString(hash[:]), nil
-}
-
-func TooSoon(args *types.DebounceCommand, cmd string) {
-	fmt.Printf(
-		"🚥 will not run \"%s\" more than once every %s %s\n",
-		cmd,
-		args.Quantity,
-		args.Unit,
-	)
-}
-
-func FormatDuration(d time.Duration) string {
-	hours := int(d.Hours())
-	minutes := int(d.Minutes()) % 60
-	seconds := int(d.Seconds()) % 60
-	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
-}
-
-func HandleStatus(
-	args *types.DebounceCommand,
-	filename string,
-	tooSoon bool,
-	prettyName string,
-) (bool, []byte, error) {
-	fileInfo, err := os.Stat(filename)
-	if args.Local {
-		cwd, err := os.Getwd()
+		executable, err := exec.LookPath(args.Command[0])
 		if err != nil {
-			return false, []byte{}, errors.Join(errors.New("get current working directory"), err)
+			return false, nil, fmt.Errorf("resolve command: %w", err)
 		}
-		fmt.Printf("🏘️ command localized to %s\n", cwd)
+		executable, err = filepath.Abs(executable)
+		if err != nil {
+			return false, nil, err
+		}
+		req.Command, req.Directory = commandBytes(args.Command), []byte(cwd)
+		req.Command[0] = []byte(executable)
 	}
-	if os.IsNotExist(err) {
-		fmt.Printf("Cache file does not exist. \"%s\" will run on next debounce\n", prettyName)
-		return true, []byte{}, nil
-	} else if err != nil {
-		return false, []byte{}, errors.Join(errors.New("stat file"), err)
+	if err := req.validate(); err != nil {
+		return false, nil, err
 	}
-
-	fileAge := time.Since(fileInfo.ModTime())
-	debounceInterval, err := is_age.StringToDuration(args.Quantity, args.Unit)
+	encoded, err := json.Marshal(req)
 	if err != nil {
-		return false, []byte{}, err
+		return false, nil, err
 	}
-
-	fmt.Printf("📁 cache location: %s\n", filename)
-	fmt.Printf("🚧 cache last modified: %s\n", fileInfo.ModTime().Format(time.RFC1123))
-	fmt.Printf("⏲️ debounce interval: %s\n", FormatDuration(debounceInterval.Abs()))
-	fmt.Printf("🕰️ cache age: %s\n", FormatDuration(fileAge))
-	if tooSoon {
-		waitTime := -1**debounceInterval - time.Since(fileInfo.ModTime())
-		fmt.Printf("⏳ time remaining: %s\n", FormatDuration(waitTime))
-	} else {
-		fmt.Printf("🚀 \"%s\" will run on next invocation\n", prettyName)
+	if len(encoded)+1 > maxMessageSize {
+		return false, nil, errors.New("trigger exceeds 1 MiB IPC limit")
 	}
-	return true, []byte{}, nil
+	endpoint := scopedEndpoint(userID, taskID)
+	if args.Debug {
+		fmt.Printf("IPC endpoint: %s\n", endpoint)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+		conn, dialErr := dialEndpoint(ctx, endpoint)
+		cancel()
+		if dialErr == nil {
+			if err := authenticateCoordinator(conn, userID); err != nil {
+				_ = conn.Close()
+				return false, nil, fmt.Errorf("verify coordinator identity: %w", err)
+			}
+			reply, err := exchange(conn, req)
+			if err != nil {
+				// Once sent, the request might have been accepted. Do not blindly replay
+				// across coordinator death and execute a command twice.
+				return false, nil, fmt.Errorf("trigger not confirmed (it may have been accepted): %w", err)
+			}
+			if !reply.Retry {
+				if args.Status {
+					fmt.Printf("Existing coordinator: %s\n", reply.State)
+				} else {
+					fmt.Printf("Existing coordinator: %s; trigger accepted\n", reply.State)
+				}
+				return true, nil, nil
+			}
+		} else {
+			if args.Status {
+				if missingEndpoint(dialErr) {
+					fmt.Println("No active coordinator")
+					return true, nil, nil
+				}
+				return false, nil, fmt.Errorf("query coordinator: %w", dialErr)
+			}
+			listener, err := listenEndpoint(endpoint, userID)
+			if err == nil {
+				if args.Debug {
+					fmt.Println("Coordinator started: waiting for quiet window")
+				}
+				return coordinate(listener, req, args.Debug)
+			}
+			if !retryListen(err) {
+				return false, nil, fmt.Errorf("create coordinator: %w", err)
+			}
+		}
+		if time.Now().After(deadline) {
+			return false, nil, errors.New("cannot connect to or start coordinator within 5 seconds")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }

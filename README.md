@@ -1,302 +1,167 @@
 # debounce
 
-<!-- vim-markdown-toc GFM -->
-
-- [Introduction](#introduction)
-- [Installation](#installation)
-  - [Go Install](#go-install)
-  - [Using Ubi](#using-ubi)
-  - [Download a Release](#download-a-release)
-- [Examples](#examples)
-  - [A command without arguments](#a-command-without-arguments)
-  - [A command with arguments](#a-command-with-arguments)
-  - [Using Shell Variables](#using-shell-variables)
-  - [More Complex Commands](#more-complex-commands)
-- [Available Flags](#available-flags)
-  - [--cache-dir](#--cache-dir)
-  - [--local](#--local)
-    - [Example Usage](#example-usage)
-  - [--status](#--status)
-    - [Resetting the Cache](#resetting-the-cache)
-  - [--version](#--version)
-  - [--help](#--help)
-- [Caveats](#caveats)
-
-<!-- vim-markdown-toc -->
-
-## Introduction
-
-`debounce` is a simple utility to limit the rate at which a command can fire.
-I've written a blog post on
-[the motivation behind this tool](https://www.olafalders.com/2025/02/25/debounce-all-of-the-things/).
-
-The command format is:
-
-```bash
-debounce <integer> <unit> <command>
-```
-
-Available units are:
-
-- seconds (s)
-- minutes (m)
-- hours (h)
-- days (d)
-
-The following are equivalent:
-
-```bash
-debounce 1 s some-command
-debounce 1 second some-command
-debounce 1 seconds some-command
-```
-
-```bash
-debounce 1 m some-command
-debounce 1 minute some-command
-debounce 1 minutes some-command
-```
-
-```bash
-debounce 1 h some-command
-debounce 1 hour some-command
-debounce 1 hours some-command
-```
-
-```bash
-debounce 1 d some-command
-debounce 1 day some-command
-debounce 1 days some-command
-```
-
-Note that `day` is shorthand for `24 hours`. Daylight Saving Time is not taken
-into account.
+Cross-process **trailing-edge debounce** for Windows, Linux and macOS, based on
+[oalders/debounce](https://github.com/oalders/debounce) and independently maintained
+by [liang-chang](https://github.com/liang-chang). This version replaces upstream's
+successful-execution cooldown with a quiet-window scheduler. macOS support is experimental.
 
 ## Installation
 
-Choose from the following options to install `debounce`.
+Download an archive for your OS and architecture from
+[Releases](https://github.com/liang-chang/debounce/releases), extract it and add
+the executable's directory to `PATH`. Windows archives use ZIP; Linux/macOS use
+tar.gz. Linux DEB/RPM packages are also produced.
 
-### Go Install
-
-```bash
-go install github.com/oalders/debounce@latest
-```
-
-or for a specific version:
-
-```bash
-go install github.com/oalders/debounce@v0.5.2
-```
-
-### Using Ubi
-
-You can use [ubi](https://github.com/houseabsolute/ubi) to install `debounce`.
-
-```bash
-#!/usr/bin/env bash
-
-set -eux -o pipefail
-
-# Choose a directory in your $PATH
-dir="$HOME/local/bin"
-
-if [ ! "$(command -v ubi)" ]; then
-    curl --silent --location \
-        https://raw.githubusercontent.com/houseabsolute/ubi/master/bootstrap/bootstrap-ubi.sh |
-        TARGET=$dir sh
-fi
-
-ubi --project oalders/debounce --in "$dir"
-```
-
-### Download a Release
-
-You can download the latest release directly from
-[here](https://github.com/oalders/debounce/releases).
-
-## Examples
-
-### A command without arguments
-
-This runs the command without any parameters but prevents repeated execution
-within the set time window.
-
-```bash
-$ debounce 2 seconds date
-Mon Aug  5 23:09:09 EDT 2024
-$ debounce 2 seconds date
-🚥 will not run date more than once every 2 seconds
-```
-
-### A command with arguments
-
-This example uses [ubi](https://github.com/houseabsolute/ubi) to install
-[is](https://github.com/oalders/is) into the current directory. The command
-won't be executed more than once every 8 hours.
-
-```bash
-$ debounce 8 hours ubi --verbose --project oalders/is --in .
-[ubi::installer][INFO] Installed binary into ./is
-$ debounce 8 hours ubi --verbose --project oalders/is --in .
-🚥 will not run "ubi --verbose --project oalders/is --in ." more than once every 8 hours
-```
-
-### Using Shell Variables
-
-Remember to single quote variables which shouldn't be expanded until the command
-is run.
-
-```bash
-debounce 10 s zsh -c 'echo $PWD'
-```
-
-### More Complex Commands
-
-You can use `&&` and `||` in your commands. You'll want to quote your command to
-ensure that the entire command is passed to `debounce`.
-
-```bash
-debounce 2 s bash -c 'sleep 2 && date'
-```
-
-## Available Flags
-
-It's important to add `debounce` flags before other command arguments to avoid
-confusion between `debounce` flags and flags meant for your command.
-
-Good: ✅
-
-```shell
-debounce --debug 90 s curl https://www.olafalders.com
-```
-
-Bad: 💥
-
-```shell
-$ debounce 90 s curl https://www.prettygoodping.com --debug
-🚀 Running command: curl https://www.prettygoodping.com --debug
-curl: option --debug: is unknown
-```
-
-You could be explicit about this by using `--` as a visual indicator that flag
-parsing has ended.
-
-```shell
-debounce --debug 90 s -- curl https://www.prettygoodping.com
-```
-
-### --cache-dir
-
-Specify an alternate cache directory to use. The directory must already exist.
-
-```bash
-debounce --cache-dir /tmp 30 s date
-```
-
-### --local
-
-The `--local` flag modifies the behavior of `debounce` by including the full
-path to the current working directory in the cache key. This ensures that the
-cache is specific to the directory from which the command is run.
-
-By default, `debounce` works globally. It generates a cache key based on the
-command and its arguments. This means that if you run the same command from
-different directories, `debounce` will treat them as the same command and use
-the same cache file. This can be useful if you want to limit the execution of a
-command globally, regardless of the directory.
-
-With the `--local` flag, `debounce` includes the full path to the current
-working directory in the cache key. This means that the cache is specific to the
-directory from which the command is run. If you run the same command from
-different directories, `debounce` will treat them as different commands and use
-separate cache files. This is useful if you want to limit the execution of a
-command on a per-directory basis.
-
-#### Example Usage
-
-```shell
-# Run a command without the --local flag
-debounce 10 s echo "Hello, World!"
-# Run the same command again within 10 seconds
-debounce 10 s echo "Hello, World!"
-# Output: 🚥 will not run "echo Hello, World!" more than once every 10 seconds
-
-# Run a command with the --local flag
-debounce --local 10 s echo "Hello, Local World!"
-# Run the same command again within 10 seconds from the same directory
-debounce --local 10 s echo "Hello, Local World!"
-# Output: 🚥 will not run "echo Hello, Local World!" more than once every 10 seconds
-
-# Run the same command from a different directory
-cd /another/directory
-debounce --local 10 s echo "Hello, Local World!"
-# Output: Hello, Local World!
-```
-
-### --status
-
-Print debounce status information for a command.
-
-```bash
-debounce --status 30 s date
-📁 cache location: /Users/olaf/.cache/debounce/0e87632cd46bd4907c516317eb6d81fe0f921a23c7643018f21292894b470681
-🚧 cache last modified: Thu, 19 Sep 2024 08:28:20 EDT
-⏲️ debounce interval: 00:00:30
-🕰️ cache age: 00:00:12
-⏳ time remaining: 00:00:17
-```
-
-#### Resetting the Cache
-
-Since the cache is just a file, you can `rm` the cache location file whenever
-you'd like to start fresh.
-
-```shell
-rm /Users/olaf/.cache/debounce/0e87632cd46bd4907c516317eb6d81fe0f921a23c7643018f21292894b470681
-```
-
-### --version
-
-Prints current version.
-
-```bash
-debounce --version
-0.5.2
-```
-
-### --help
-
-Displays usage instructions.
+With Go 1.24 or newer, after the first release is published:
 
 ```text
-debounce --help
-Usage: debounce <quantity> <unit> <command> ... [flags]
-
-limit the rate at which a command can fire
-
-Arguments:
-  <quantity>       Quantity of time
-  <unit>           s,second,seconds,m,minute,minutes,h,hour,hours,d,day,days
-  <command> ...    Command to run
-
-Flags:
-  -h, --help                Show context-sensitive help.
-      --debug               Print debugging info to screen
-      --version             Print version to screen
-      --status              Print cache information for a command without running it
-      --local               Localize debounce to current working directory
-      --cache-dir=STRING    Override the default cache directory
+go install github.com/liang-chang/debounce@latest
+debounce --version
 ```
 
-## Caveats
+The first independent version is `0.6.0` (tag `v0.6.0`). Before publication,
+build from this repository instead. Report issues at
+[liang-chang/debounce/issues](https://github.com/liang-chang/debounce/issues).
 
-Under the hood, `debounce` creates or updates a cache file to track when a
-command was run successfully. This means that, under the right conditions, it's
-entirely possible to kick off two long-running tasks in parallel without
-`debounce` knowing about it.
+## Build
 
-Additionally, if a command fails, the cache file will not be created or updated.
+Requires Go 1.24 or newer. No CGO, external lock utility, or background service
+installation is required.
 
-I've created this tool in a way that meets my needs. I will consider pull
-requests for additional functionality to address issues like these. Please get
-in touch with me first to discuss your feature if you'd like to add something.
+```powershell
+go build -o debounce.exe .
+.\debounce.exe --key repo-check 3 s git status --short
+```
+
+On Linux/macOS: `go build -o debounce .`.
+
+Upstream releases do **not** contain this implementation. The original license
+files and upstream release history are retained for attribution.
+
+## Lifecycle
+
+1. The first invocation becomes the coordinator and stays in the foreground.
+   It waits for a full quiet window before executing anything.
+2. Another invocation with the same identity submits its latest command and
+   resets the window. After acknowledgement it prints
+   `Existing coordinator: waiting; trigger accepted` (or `running`)
+   and exits with 0.
+3. After the quiet window, the coordinator executes the **last accepted command**.
+   Ordering is by acceptance at the coordinator, not by client process start time.
+4. New triggers during execution never interrupt that command. They are merged
+   into one pending next run. It starts after both the current command finishes
+   and the pending quiet window expires.
+5. When no command or pending trigger remains, the coordinator closes its IPC
+   endpoint and exits. A new invocation then starts a fresh quiet window.
+
+For a 3-second window, triggers at seconds 0, 1 and 2 execute once at about
+second 5. There is **no success cooldown** after that execution.
+
+## Usage and identity
+
+```text
+debounce [flags] <integer> <unit> <command> [arguments...]
+```
+
+Units: `s/second/seconds`, `m/minute/minutes`, `h/hour/hours`, `d/day/days`.
+A day is 24 hours. Quantities must be between 1 and 36500. Flags go before the
+quantity; `--` can separate the target command.
+
+- `--key KEY`: explicit logical task identity. Same key shares a coordinator,
+  even across commands and working directories.
+- Without `--key`: versioned structured command/argument identity, preserving
+  argument boundaries and raw Unix bytes.
+- `--local`: adds the cleaned, symlink-resolved working directory to automatic
+  identity. It does not affect an explicit key.
+- `--status`: reports `waiting`, `running` or `No active coordinator`
+  without submitting a trigger or changing the timer. Supply the same identity.
+- `--debug`: reports the IPC endpoint and coordinator transitions.
+- `--version`, `--help`: version and usage.
+
+The current user's UID/SID scopes all identities. There is no `--namespace`.
+`--state-dir` and the upstream `--cache-dir` are removed.
+
+Different intervals on the same identity are allowed; the last accepted trigger
+supplies both the next command and its quiet-window duration.
+
+## Command execution and results
+
+Commands are executed directly, without an implicit shell. Use `cmd.exe /c`
+for CMD builtins or `pwsh.exe -NoProfile -File job.ps1` for a script.
+The executable is resolved by the submitting process; its absolute path,
+arguments and working directory are sent to the coordinator.
+
+Environment variables are **not transmitted**. Every child inherits the
+coordinator's environment, which came from the first invocation. Later callers'
+environment changes do not apply.
+
+Target output is buffered and printed by the **coordinator's terminal**, when
+the coordinator exits. Submitting clients receive an acknowledgement, not the
+target's eventual result. The coordinator exits with 1 if any command or IPC
+service operation failed; otherwise it exits with 0. A command failure does not
+discard already accepted next-round triggers or automatically retry that command.
+
+A request received during orderly shutdown gets a retry response; the caller
+reconnects or competes to become the next coordinator. If delivery happened but
+acknowledgement failed, the client reports an **uncertain outcome** and exits
+nonzero, rather than automatically replaying a potentially accepted command.
+
+## Platform support and boundaries
+
+- **Linux:** abstract Unix-domain stream socket. No `.sock` file is created.
+  The endpoint is removed by the kernel once all socket references close.
+  Peer credentials are checked against the current UID. Coordination is within
+  the same Linux network namespace.
+- **Windows:** exclusive named-pipe listener via `github.com/Microsoft/go-winio`.
+  Its ACL permits the current user's SID. User identity comes from the process
+  token, so an account does not need a profile directory. Clients also verify
+  the named-pipe server's process-token SID before sending command data.
+- **macOS (experimental):** pathname Unix-domain socket in the current user's
+  private `0700` directory `/tmp/debounce-v2-<uid>`, with peer UID verification.
+  A per-task `flock` is held for the coordinator's lifetime. Only the lock owner
+  may remove a stale socket after a crash. Normal shutdown removes the socket
+  before releasing the lock; empty `.lock` files remain to preserve lock identity.
+  Do not delete this directory or its lock files while invocations are active.
+- Other systems return an explicit unsupported-platform error.
+
+Linux/Windows do not persist lock, stamp or socket files. macOS retains empty
+lock files and may leave socket files after a crash. Requests are held in memory.
+A crash, forced termination or reboot can lose pending work. A running target
+may outlive its coordinator; this version does not guarantee orphan-process
+exclusion, automatic recovery or exactly-once execution across crashes.
+
+The first caller must remain alive until the work finishes. This is not a
+detached scheduler, distributed lock, or file watcher. Use distinct keys for
+independent repositories/tasks. All cooperating invocations should use this
+same implementation/protocol.
+
+A trigger is limited to 1 MiB. IPC exchanges have a 5-second deadline; startup
+and shutdown connection races retry for up to 5 seconds.
+
+## Validation and licenses
+
+```text
+go test ./...
+go vet ./...
+```
+
+Integration tests launch separate processes and cover timer reset, latest-command
+selection, queued execution, environment/cwd behavior, independent keys, failures,
+automatic exit and concurrent coordinator election. Linux CI also uses the race
+detector. Cross-compilation is not a substitute for runtime IPC tests.
+
+Upstream Apache-2.0/MIT license files remain. Third-party IPC dependencies and
+their licenses are in `THIRD-PARTY-NOTICES`.
+
+## Platform testing notes / 平台测试说明
+
+本项目主要在 **Windows** 上使用和验证。
+
+- **Windows：** 本地执行 Go 测试和静态检查。
+- **Linux：** 使用 WSL2 Debian 执行 Linux 测试程序，验证防抖、并发协调和
+  命令执行；WSL 结果不代表已覆盖独立 Linux 主机的所有环境。
+- **macOS：** 暂无 Mac 机器，**未做真机运行测试**。目前仅进行交叉编译，
+  并在 WSL 中测试共用的路径 socket/文件锁逻辑；这不能替代 macOS 专属
+  身份校验及实际运行验证，因此 macOS 支持暂标为实验性。
+
+GitHub Actions 已配置 macOS 运行测试；配置存在不代表该工作流已经运行通过。

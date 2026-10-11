@@ -6,7 +6,9 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
-version: 1
+version: 2
+project_name: debounce
+dist: dist/release
 
 before:
   hooks:
@@ -25,22 +27,22 @@ builds:
     goarm:
       - "7"
     ignore:
+      - goos: windows
+        goarch: arm
       - goos: darwin
         goarch: arm
-      - goos: netbsd
-        goarch: arm
-      - goos: freebsd
-        goarch: arm
-      - goos: windows
     goos:
       - linux
       - windows
       - darwin
-      - netbsd
-      - freebsd
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
+    files:
+      - LICENSE*
+      - README*
+      - CHANGELOG*
+      - THIRD-PARTY-NOTICES
     # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       {{ .ProjectName }}_
@@ -52,19 +54,19 @@ archives:
     # use zip for windows archives
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
 nfpms:
   -
     id: 'debounce'
     package_name: debounce
-    builds:
+    ids:
       - 'debounce'
-    vendor: 'Olaf Alders'
-    homepage: 'https://www.olafalders.com/'
-    maintainer: 'Olaf Alders <https://github.com/oalders>'
-    description: 'Limit the rate at which a command can fire'
-    license: 'Apache 2.0 or MIT'
+    vendor: 'liang-chang'
+    homepage: 'https://github.com/liang-chang/debounce'
+    maintainer: 'liang-chang'
+    description: 'Cross-process trailing-edge debounce for commands'
+    license: 'Apache-2.0 OR MIT'
     provides:
       - debounce
     formats:
@@ -80,6 +82,8 @@ nfpms:
         dst: '/usr/share/doc/debounce/LICENSE-MIT'
       - src: 'README.md'
         dst: '/usr/share/doc/debounce/README.md'
+      - src: 'THIRD-PARTY-NOTICES'
+        dst: '/usr/share/doc/debounce/THIRD-PARTY-NOTICES'
 
 changelog:
   sort: asc

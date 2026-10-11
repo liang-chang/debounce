@@ -1,6 +1,8 @@
 c.out
+.codegraph/
 coverage.out
 debounce
 dist/
 node_modules/
 bin/debounce
+debounce.exe

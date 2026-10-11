@@ -1,99 +1,44 @@
----
 name: test
-
-env:
-  GITHUB_TOKEN: ${{ github.token }}
 
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7.0.0
         with:
-          go-version: 1.25.0
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 20
-
-      - name: go build
-        run: ./bin/go-build
-
-      - name: Test
-        run: go test -race -coverprofile=coverage.out -covermode=atomic -v ./...
-
-      - name: Install bats
-        run: npm install -g bats
-
-      - name: bats test
-        run: echo $PWD && ls && bats --verbose-run test
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
-  macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: 1.25.0
-
-      - name: go build
-        run: ./bin/go-build
-
-      - name: Install executables required for testing
-        run: brew install tmux
-
-      - name: Test
-        run: go test -race -coverprofile=coverage.out -covermode=atomic -v ./...
-
-      - name: Install bats
-        run: npm install -g bats
-
-      - name: bats test
-        run: bats test
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
-  precious:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: 1.25.0
-
-      - name: install gofumpt
-        run: go install mvdan.cc/gofumpt@latest
-      - name: install golangci-lint
-        run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
-
+          go-version-file: go.mod
       - name: Build
-        run: ./bin/go-build
-
-      - run: env | sort
-      - name: mkdir
-        run: mkdir -p ~/.local/bin
-      - name: npm i
-        run: npm i
-      - name: Install ubi
-        run: curl --silent --location https://raw.githubusercontent.com/houseabsolute/ubi/master/bootstrap/bootstrap-ubi.sh | TARGET=~/.local/bin sh
-      - name: Install omegasort
-        run: ubi --project houseabsolute/omegasort --in ~/.local/bin
-      - name: Install precious
-        run: ubi --project houseabsolute/precious --in ~/.local/bin
-      - name: Run precious
-        run: precious lint --all
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Test on Windows
+        if: runner.os == 'Windows'
+        run: go test -count=1 -v ./...
+      - name: Test with race detector on Unix
+        if: runner.os != 'Windows'
+        run: go test -race -count=1 -v ./...
+      - uses: actions/setup-node@v7.1.0
+        if: runner.os == 'Linux'
+        with:
+          node-version: '22'
+      - name: CLI smoke tests
+        if: runner.os == 'Linux'
+        run: |
+          go build -o bin/debounce .
+          npm install --global bats@1.12.0
+          bats --verbose-run test

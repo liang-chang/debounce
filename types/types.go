@@ -10,7 +10,7 @@ type Context struct {
 type DebounceCommand struct {
 	Quantity string
 	Unit     string
-	CacheDir string
+	Key      string
 	Command  []string
 	Debug    bool
 	Local    bool

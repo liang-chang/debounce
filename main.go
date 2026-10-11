@@ -2,23 +2,22 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 
 	"github.com/alecthomas/kong"
-	"github.com/oalders/debounce/run"
-	"github.com/oalders/debounce/types"
+	"github.com/liang-chang/debounce/run"
+	"github.com/liang-chang/debounce/types"
 )
 
-const vstring = "0.5.2"
+const vstring = "0.6.0"
 
 type CLI struct { //nolint:govet
 	Debug    bool             `help:"Print debugging info to screen"`
 	Version  kong.VersionFlag `help:"Print version to screen"`
-	Status   bool             `help:"Print cache information for a command without running it"`
+	Status   bool             `help:"Query the active coordinator without triggering a command"`
 	Local    bool             `help:"Localize debounce to current working directory"`
-	CacheDir string           `help:"Override the default cache directory"`
+	Key      string           `help:"Explicit task identity, shared across commands and working directories"`
 	Quantity string           `arg:"" help:"Quantity of time"`
 	Unit     string           `arg:"" required:"" enum:"s,second,seconds,m,minute,minutes,h,hour,hours,d,day,days" help:"s,second,seconds,m,minute,minutes,h,hour,hours,d,day,days"` //nolint:lll
 	Command  []string         `arg:"" help:"Command to run" passthrough:""`
@@ -28,7 +27,7 @@ func main() {
 	var cli CLI
 	parser := kong.Must(&cli,
 		kong.Name("debounce"),
-		kong.Description("limit the rate at which a command can fire"),
+		kong.Description("run the latest command after a quiet window (Linux/Windows/macOS)"),
 		kong.UsageOnError(),
 		kong.Exit(func(code int) {
 			if code != 0 {
@@ -51,14 +50,10 @@ func main() {
 		Debug:    cli.Debug,
 		Local:    cli.Local,
 		Status:   cli.Status,
-		CacheDir: cli.CacheDir,
+		Key:      cli.Key,
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatal(err)
-	}
-	success, output, err := run.Run(&runContext, home)
+	success, output, err := run.Run(&runContext)
 	fmt.Print(string(output))
 	if err != nil {
 		fmt.Printf("💥 %s\n", err)
