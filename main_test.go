@@ -132,7 +132,9 @@ func waitCoordinator(t *testing.T, key, dir string) {
 func TestTrailingEdgeLatestCommandAndExit(t *testing.T) {
 	dir := t.TempDir()
 	key := dir
-	owner := cli(t, key, dir, "ok", "first")
+	// Readiness probes are separate processes; under -race they also wait on
+	// exit. Leave startup headroom, then let the next trigger reset to 1 second.
+	owner := cliWithInterval(t, key, dir, "ok", "first", "10")
 	output := start(t, owner)
 	time.Sleep(300 * time.Millisecond)
 	_, err := os.Stat(filepath.Join(dir, "first.json"))
@@ -146,9 +148,12 @@ func TestTrailingEdgeLatestCommandAndExit(t *testing.T) {
 	require.NoError(t, owner.Wait(), "%s", output.String())
 	record := readExecution(t, dir, "last")
 	require.GreaterOrEqual(t, record.At.Sub(submittedAt), 950*time.Millisecond)
-	resolved, err := filepath.EvalSymlinks(nextDir)
+	expectedDir, err := os.Stat(nextDir)
 	require.NoError(t, err)
-	require.Equal(t, resolved, record.Directory)
+	actualDir, err := os.Stat(record.Directory)
+	require.NoError(t, err)
+	// Windows short names and macOS /var aliases can name the same directory.
+	require.True(t, os.SameFile(expectedDir, actualDir), "command must use the submitted working directory")
 	_, err = os.Stat(filepath.Join(dir, "first.json"))
 	require.True(t, os.IsNotExist(err), "superseded command must not execute")
 	status, err := cli(t, key, dir, "ok", "unused", "--status").CombinedOutput()
