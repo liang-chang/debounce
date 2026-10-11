@@ -5,6 +5,8 @@ Cross-process **trailing-edge debounce** for Windows, Linux and macOS, based on
 by [liang-chang](https://github.com/liang-chang). This version replaces upstream's
 successful-execution cooldown with a quiet-window scheduler. macOS support is experimental.
 
+[中文说明](README.zh-CN.md)
+
 ## Installation
 
 Download an archive for your OS and architecture from
@@ -152,16 +154,18 @@ detector. Cross-compilation is not a substitute for runtime IPC tests.
 Upstream Apache-2.0/MIT license files remain. Third-party IPC dependencies and
 their licenses are in `THIRD-PARTY-NOTICES`.
 
-## Platform testing notes / 平台测试说明
+## Platform testing notes
 
-本项目主要在 **Windows** 上使用和验证。
+This project is primarily used and validated on **Windows**.
 
-- **Windows：** 本地执行 Go 测试和静态检查。
-- **Linux：** 使用 WSL2 Debian 执行 Linux 测试程序，验证防抖、并发协调和
-  命令执行；WSL 结果不代表已覆盖独立 Linux 主机的所有环境。
-- **macOS：** 暂无 Mac 机器，**未做真机运行测试**。目前仅进行交叉编译，
-  并在 WSL 中测试共用的路径 socket/文件锁逻辑；这不能替代 macOS 专属
-  身份校验及实际运行验证，因此 macOS 支持暂标为实验性。
+- **Windows:** Go tests and static checks are run locally.
+- **Linux:** Linux test binaries are run in WSL2 Debian to validate debounce,
+  concurrent coordination and command execution. WSL results do not cover every
+  environment on standalone Linux hosts.
+- **macOS:** The maintainer has no Mac and has **not performed local runtime
+  testing on a Mac**. Local validation consists of cross-compilation and testing
+  the shared pathname-socket/file-lock logic in WSL. This does not replace macOS
+  peer-identity checks and runtime validation, so support remains experimental.
 
-GitHub Actions 已在 Windows、Linux 和 macOS 上运行测试并通过；macOS 仍缺少
-维护者本地真机使用验证，因此继续标为实验性支持。
+GitHub Actions tests have passed on Windows, Linux and macOS. macOS still lacks
+local usage validation by the maintainer and remains experimental.
